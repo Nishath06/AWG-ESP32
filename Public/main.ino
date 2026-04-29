@@ -5,8 +5,19 @@
 #include <WiFiManager.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 #define MQTT_MAX_PACKET_SIZE 512
+
+// ================= TEST OLED =================
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+unsigned long lastDisplayUpdate = 0;
+int displayState = 0;
 
 // ================= NEW ADDITIONS =================
 #define ONE_WIRE_BUS 2
@@ -108,8 +119,8 @@ nCofEC46Y7c9s9IiqVp2PnL1q17UvmCFxQbYwAW1bDFgWSd6we2F
 // ================= EXISTING PINS =================
 #define DHTPIN 15
 #define DHTTYPE DHT11
-#define WATER_PIN 34
-#define TDS_PIN 35
+#define WATER_PIN 35
+#define TDS_PIN 34
 
 #define S0 14
 #define S1 27
@@ -262,11 +273,25 @@ void setup() {
   pinMode(RESET_BUTTON, INPUT_PULLUP);
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(MANUAL_SWITCH, INPUT_PULLUP);
+  pinMode(WATER_PIN, INPUT);
+  pinMode(TDS_PIN, INPUT);
 
   digitalWrite(RELAY_PIN, LOW);
 
   heaterSensor.begin();
   dht.begin();
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED not found");
+  } else {
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(10, 20);
+    display.println("Public AWG");
+    display.display();
+    delay(2000);
+  }
 
   setupWiFi();
 
@@ -280,6 +305,70 @@ void setup() {
   digitalWrite(S1, LOW);
 }
 
+// ================= DISPLAY FUNCTION =================
+void displaySequence() {
+  if (millis() - lastDisplayUpdate < 2000) return;
+  lastDisplayUpdate = millis();
+
+  float temperature = heaterSensor.getTempCByIndex(0);
+  if (temperature == DEVICE_DISCONNECTED_C) temperature = 0.0;
+  
+  float humidity = dht.readHumidity();
+  if (isnan(humidity)) humidity = 0.0;
+
+  int rawLevel = analogRead(WATER_PIN);
+  Serial.print("Raw Water Level: ");
+  Serial.println(rawLevel);
+
+  float waterLevel = map(rawLevel, 1200, 3000, 0, 100);
+  if (waterLevel < 0.0) waterLevel = 0.0;
+  if (waterLevel > 100.0) waterLevel = 100.0;
+
+  int analogValue = analogRead(TDS_PIN);
+  float voltage = analogValue * (3.3 / 4095.0);
+  float tdsValue = (133.42 * voltage * voltage * voltage 
+            - 255.86 * voltage * voltage 
+            + 857.39 * voltage) * 0.5;
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+
+  if (displayState == 0) {
+    display.setCursor(0, 20);
+    display.print("Temp: ");
+    display.print(temperature);
+    display.println(" C");
+  } else if (displayState == 1) {
+    display.setCursor(0, 20);
+    display.print("Humidity: ");
+    display.print(humidity);
+    display.println(" %");
+  } else if (displayState == 2) {
+    display.setCursor(0, 20);
+    display.print("Level: ");
+    display.print(waterLevel);
+    display.println(" %");
+  } else if (displayState == 3) {
+    display.setCursor(0, 20);
+    display.print("TDS: ");
+    display.print(tdsValue);
+    display.println(" ppm");
+  } else if (displayState == 4) {
+    display.setCursor(0, 20);
+    if (tdsValue <= 300) {
+      display.println("Water SAFE");
+    } else {
+      display.println("NOT SAFE!");
+    }
+  }
+  
+  display.display();
+
+  displayState++;
+  if (displayState > 4) displayState = 0;
+}
+
 // ================= LOOP =================
 void loop() {
 
@@ -289,6 +378,7 @@ void loop() {
   }
 
   controlHeater();
+  displaySequence();
 
   connectAWS();
   client.loop();

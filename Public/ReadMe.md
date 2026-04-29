@@ -1,48 +1,45 @@
-# 📌 ESP32 Pin Configuration (Updated)
+# 📌 ESP32 Pin Configuration (Final)
 
-This document describes all GPIO connections used in the project, including **manual heater control and safety logic updates**.
+This document defines all GPIO connections used in the system, including heater control, sensors, OLED display, and safety logic.
 
 ---
 
-## 🔥 Heater Control System (Updated)
+## 🔥 Heater Control System
 
 ### 🌡 DS18B20 Temperature Sensor
 
 * **DATA → GPIO 2**
 * **VCC → 3.3V**
 * **GND → GND**
-* ⚠️ Use a **4.7kΩ resistor** between DATA and VCC
+* ⚠️ **4.7kΩ pull-up resistor required** (DATA ↔ VCC)
 
 ---
 
-### 🔌 Relay Module (12V Heater Control)
+### 🔌 Relay Module (Heater Control)
 
 * **IN → GPIO 16**
-* **VCC → 5V (or 3.3V depending on module)**
+* **VCC → 5V** (recommended)
 * **GND → GND**
 
-⚠️ Notes:
-
-* Controls **12V ceramic cartridge heater**
-* Uses **external 12V power supply**
-* ESP32 only sends control signal
+⚠️ **Notes:**
+* Controls **12V ceramic heater**
+* Uses **external 12V supply**
+* ESP32 provides only control signal
 
 ---
 
-### 🔘 Manual Heater Switch (NEW)
+### 🔘 Manual Heater Switch
 
-* **Pin → GPIO 17**
-* **Other side → GND**
+* **GPIO 17** → Switch → **GND**
 * Mode: `INPUT_PULLUP`
 
-### Function:
-
-* Switch OFF → Heater **always OFF**
-* Switch ON → Heater control logic activated
+**Function:**
+* **LOW (Pressed)** → Heater Enabled
+* **HIGH** → Heater Disabled (Forced OFF)
 
 ---
 
-## 🌡 Environment Sensors
+## 🌡 Environmental Sensors
 
 ### 🌡 DHT11 (Temperature & Humidity)
 
@@ -52,15 +49,15 @@ This document describes all GPIO connections used in the project, including **ma
 
 ---
 
-### 💧 Water Level Sensor
+### 💧 Water Level Sensor (Analog)
 
-* **Analog OUT → GPIO 34**
+* **AO → GPIO 35**
 
 ---
 
-### 🧪 TDS Sensor
+### 🧪 TDS Sensor (Analog)
 
-* **Analog OUT → GPIO 35**
+* **AO → GPIO 34**
 
 ---
 
@@ -68,23 +65,34 @@ This document describes all GPIO connections used in the project, including **ma
 
 | Pin | ESP32 GPIO |
 | --- | ---------- |
-| S0  | GPIO 14    |
-| S1  | GPIO 27    |
-| S2  | GPIO 26    |
-| S3  | GPIO 25    |
-| OUT | GPIO 33    |
+| S0  | 14         |
+| S1  | 27         |
+| S2  | 26         |
+| S3  | 25         |
+| OUT | 33         |
+
+⚠️ **Note:**
+* Works on 3.3V logic
+* Frequency output read using `pulseIn()`
+
+---
+
+## 🖥 OLED Display (SSD1306 – I2C)
+
+* **SDA → GPIO 21**
+* **SCL → GPIO 22**
+* **VCC → 3.3V**
+* **GND → GND**
 
 ---
 
 ## 🔘 Reset Button (WiFi Reset)
 
-* **Pin → GPIO 4**
-* **Other side → GND**
+* **GPIO 4** → Button → **GND**
 * Mode: `INPUT_PULLUP`
 
-### Function:
-
-* Press and hold **> 2 seconds**
+**Function:**
+* Press **> 2 seconds**
 * Clears WiFi credentials
 * Restarts ESP32
 
@@ -92,128 +100,118 @@ This document describes all GPIO connections used in the project, including **ma
 
 ## 📡 Summary Table
 
-| Component          | GPIO |
-| ------------------ | ---- |
-| DS18B20            | 2    |
-| Relay              | 16   |
-| Manual Switch      | 17   |
-| Reset Button       | 4    |
-| DHT11              | 15   |
-| Water Level Sensor | 34   |
-| TDS Sensor         | 35   |
-| TCS3200 S0         | 14   |
-| TCS3200 S1         | 27   |
-| TCS3200 S2         | 26   |
-| TCS3200 S3         | 25   |
-| TCS3200 OUT        | 33   |
+| Component | GPIO |
+| :--- | :--- |
+| DS18B20 | 2 |
+| Relay | 16 |
+| Manual Switch | 17 |
+| Reset Button | 4 |
+| DHT11 | 15 |
+| Water Level | 35 |
+| TDS Sensor | 34 |
+| TCS3200 S0 | 14 |
+| TCS3200 S1 | 27 |
+| TCS3200 S2 | 26 |
+| TCS3200 S3 | 25 |
+| TCS3200 OUT | 33 |
+| OLED SDA | 21 |
+| OLED SCL | 22 |
 
 ---
 
-## ⚙️ Heater Control Logic (Updated)
-
-The heater system now follows **hybrid control (manual + automatic)**:
+## ⚙️ Heater Control Logic (Final)
 
 ### 🔘 Manual Control
-
-* Heater will **NOT start automatically**
-* User must enable using switch
+* Heater works only if switch is ON
+* If OFF → Heater is always OFF
 
 ---
 
 ### 🌡 Temperature Control
-
-* **< 68°C → Heater ON**
-* **≥ 70°C → Heater OFF**
-
----
-
-### 🎨 Color-Based Control (NEW)
-
-* Detects **orange gradient (not exact color)**
-* When silica reaches drying stage → Heater OFF
+* **Temp < 68°C** → Heater ON
+* **Temp ≥ 70°C** → Heater OFF
 
 ---
 
-### ⏱ Safety Timeout (NEW)
+### 🎨 Color-Based Safety (Silica Detection)
+* Detects orange gradient (not exact RGB)
+* Indicates silica drying completion
+* 👉 Heater is turned OFF
 
-* Maximum continuous run time: **90 minutes**
-* After timeout → Heater OFF (even if switch ON)
+---
+
+### ⏱ Safety Timeout
+* Max runtime: **90 minutes**
+* After timeout → Heater OFF
 
 ---
 
 ### 🔒 Fail-Safe Conditions
-
 Heater turns OFF if:
-
-* Sensor error
-* Switch OFF
-* Timeout reached
-* Orange gradient detected
-
----
-
-## ⚠️ Important Notes
-
-* Use **external power supply** for heater
-* Maintain **common ground**
-* DS18B20 requires pull-up resistor
-* Manual switch gives user full control over power usage
+❌ Sensor failure
+❌ Manual switch OFF
+❌ Timeout reached
+❌ Orange color detected
 
 ---
 
-# 📦 Required Libraries (ESP32 Project)
+## 📺 OLED Display Logic
 
-## 🔧 Core Libraries
-
-* WiFi (built-in)
-* WiFiClientSecure (built-in)
-* PubSubClient → MQTT
-* WiFiManager → WiFi portal
+* Boot screen → "Public AWG"
+* Displays sequentially:
+  * Temperature
+  * Humidity
+  * Water Level
+  * TDS
+  * Water Safety
 
 ---
 
-## 🌡 Sensor Libraries
+## 📦 Required Libraries
 
-* DHT sensor library (Adafruit)
+### 🔧 Core
+* WiFi
+* WiFiClientSecure
+* PubSubClient
+* WiFiManager
+
+### 🌡 Sensors
+* DHT
 * Adafruit Unified Sensor
 * OneWire
 * DallasTemperature
 
----
+### 📺 Display
+* Adafruit_GFX
+* Adafruit_SSD1306
 
-## 🎨 Others
-
+### 🎨 Others
 * TCS3200 → No library required
-* Analog sensors → built-in
-
----
-
-## 📋 Summary
-
-| Library           | Purpose               |
-| ----------------- | --------------------- |
-| WiFi              | Network               |
-| WiFiClientSecure  | AWS secure connection |
-| PubSubClient      | MQTT                  |
-| WiFiManager       | Setup portal          |
-| DHT               | Temp/Humidity         |
-| OneWire           | DS18B20               |
-| DallasTemperature | DS18B20               |
+* Analog sensors → Built-in
 
 ---
 
 ## 🚀 System Overview
 
-* AWS → Receives sensor data (unchanged)
-* Heater → Fully local control
-* User → Decides when to activate
-* System → Ensures safety and efficiency
+* **ESP32 reads:**
+  * Temperature
+  * Humidity
+  * Water level
+  * TDS
+  * Color
+* **Controls:**
+  * Heater (locally)
+* **Sends:**
+  * Data to AWS IoT (MQTT)
+* **Displays:**
+  * Live data on OLED
 
 ---
 
-✔ Manual + Smart control
-✔ Safe heater operation
-✔ Cloud-independent heating logic
-✔ Ready for real-world deployment
+## ⚠️ Important Notes (Refined)
+* Use external 12V power for heater
+* Ensure common ground across all modules
+* DS18B20 requires pull-up resistor
+* TDS sensor must not exceed 3.3V
+* Avoid powering relay directly from ESP32 if unstable
 
----
